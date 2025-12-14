@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # The Database
+  postgres:
+    image: postgres:16
+    container_name: route-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=mysecretpassword
+      - POSTGRES_DB=RouteMindsDb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # The Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management  # "management" tag gives us a UI!
+    container_name: route-mq
+    ports:
+      - "5672:5672"   # The port for C# code
+      - "15672:15672" # The port for the Browser UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
+volumes:
+  postgres_data:
