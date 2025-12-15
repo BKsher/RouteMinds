@@ -4,6 +4,8 @@ using RouteMinds.Domain.Entities;
 using RouteMinds.Domain.Interfaces;
 using MassTransit;
 using RouteMinds.Domain.Contracts;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace RouteMinds.API.Controllers
 {
@@ -13,13 +15,15 @@ namespace RouteMinds.API.Controllers
     {
         private readonly IOrderRepository _repository;
         private readonly IPublishEndpoint _publishEndpoint;
+        private readonly IDistributedCache _cache;
 
         // Constructor Injection: The API asks for the Interface, 
         // and Program.cs provides the Repository we registered earlier.
-        public OrdersController(IOrderRepository repository, IPublishEndpoint publishEndpoint)
+        public OrdersController(IOrderRepository repository, IPublishEndpoint publishEndpoint, IDistributedCache cache)
         {
             _repository = repository;
             _publishEndpoint = publishEndpoint;
+            _cache = cache;
         }
 
         [HttpPost]
@@ -61,6 +65,29 @@ namespace RouteMinds.API.Controllers
         {
             var orders = await _repository.GetAllAsync();
             return Ok(orders);
+        }
+
+        [HttpGet("{id}/route")]
+        public async Task<IActionResult> GetRoute(int id)
+        {
+            // 1. Construct the Key (Must match what the Worker saved)
+            var cacheKey = $"route_{id}";
+
+            // 2. Try to fetch from Redis
+            var cachedData = await _cache.GetStringAsync(cacheKey);
+
+            // 3. Handle Cache Miss
+            if (string.IsNullOrEmpty(cachedData))
+            {
+                // Optional: Check if order exists in DB first to distinguish "Not Found" vs "Pending"
+                return Accepted("Route is being calculated. Please try again in a few seconds.");
+            }
+
+            // 4. Return the Data
+            // We deserialize to 'object' so ASP.NET returns it as proper JSON, not a string with escaped quotes
+            var routePlan = JsonSerializer.Deserialize<object>(cachedData);
+
+            return Ok(routePlan);
         }
     }
 }

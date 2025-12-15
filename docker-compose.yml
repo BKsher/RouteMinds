@@ -16,7 +16,7 @@ services:
 
   # The Message Broker
   rabbitmq:
-    image: rabbitmq:3-management  # "management" tag gives us a UI!
+    image: rabbitmq:3-management
     container_name: route-mq
     ports:
       - "5672:5672"   # The port for C# code
@@ -24,6 +24,12 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
+
+  redis:
+    image: redis:alpine
+    container_name: route-cache
+    ports:
+      - "6379:6379"
 
 volumes:
   postgres_data:
