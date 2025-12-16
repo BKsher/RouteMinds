@@ -22,16 +22,32 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 builder.Services.AddMassTransit(x =>
 {
-    // Tell MassTransit we are using RabbitMQ
-    x.UsingRabbitMq((context, cfg) =>
+    x.SetKebabCaseEndpointNameFormatter();
+
+    if (builder.Environment.IsDevelopment())
     {
-        // Connect to the Docker container
-        cfg.Host("localhost", "/", h =>
+        // LOCALHOST: Use RabbitMQ
+        x.UsingRabbitMq((context, cfg) =>
         {
-            h.Username("guest");
-            h.Password("guest");
+            cfg.Host("localhost", "/", h =>
+            {
+                h.Username("guest");
+                h.Password("guest");
+            });
+            cfg.ConfigureEndpoints(context);
         });
-    });
+    }
+    else
+    {
+        // AZURE: Use Service Bus
+        x.UsingAzureServiceBus((context, cfg) =>
+        {
+            // We will read this from Azure Environment Variables later
+            var connectionString = builder.Configuration.GetConnectionString("ServiceBusConnection");
+            cfg.Host(connectionString);
+            cfg.ConfigureEndpoints(context);
+        });
+    }
 });
 
 builder.Services.AddStackExchangeRedisCache(options =>
@@ -47,12 +63,18 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// 1. AUTO-MIGRATE DATABASE
+// This forces the container to create tables in Azure on startup
+using (var scope = app.Services.CreateScope())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.Migrate(); // Applies any pending migrations
 }
+
+// 2. ENABLE SWAGGER ALWAYS (Remove the 'if IsDevelopment' check)
+// For a public demo, we want Swagger visible in Production
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 
