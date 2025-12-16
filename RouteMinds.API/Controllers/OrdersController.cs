@@ -16,19 +16,23 @@ namespace RouteMinds.API.Controllers
         private readonly IOrderRepository _repository;
         private readonly IPublishEndpoint _publishEndpoint;
         private readonly IDistributedCache _cache;
+        private readonly ILogger<OrdersController> _logger;
 
         // Constructor Injection: The API asks for the Interface, 
         // and Program.cs provides the Repository we registered earlier.
-        public OrdersController(IOrderRepository repository, IPublishEndpoint publishEndpoint, IDistributedCache cache)
+        public OrdersController(IOrderRepository repository, IPublishEndpoint publishEndpoint, IDistributedCache cache, ILogger<OrdersController> logger)
         {
             _repository = repository;
             _publishEndpoint = publishEndpoint;
             _cache = cache;
+            _logger = logger;
         }
 
         [HttpPost]
         public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDto dto)
         {
+            _logger.LogInformation("📝 API received order for {CustomerName}", dto.CustomerName);
+
             // 1. Map DTO to Domain Entity
             var order = new Order
             {

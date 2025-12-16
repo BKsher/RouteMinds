@@ -3,8 +3,16 @@ using Microsoft.EntityFrameworkCore;
 using RouteMinds.Domain.Interfaces;
 using RouteMinds.Infrastructure.Persistence;
 using RouteMinds.Infrastructure.Repositories;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .WriteTo.Seq("http://localhost:5341") // Send logs to Docker container
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 // Add services to the container.
 builder.Services.AddDbContext<AppDbContext>(options =>

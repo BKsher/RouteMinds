@@ -4,8 +4,18 @@ using RouteMinds.Domain.Interfaces;
 using RouteMinds.Infrastructure.Persistence;
 using RouteMinds.Infrastructure.Repositories;
 using RouteMinds.Worker;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning) // Hide Microsoft noise
+    .WriteTo.Console()
+    .WriteTo.Seq("http://localhost:5341") // Send to Seq
+    .CreateLogger();
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.AddSerilog();
 
 // 1. CONFIG: Database (Same as API)
 // Note: We need to read the connection string. In Worker, config is accessed via builder.Configuration

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Moq;
 using RouteMinds.API.Controllers;
 using RouteMinds.API.DTOs;
+using RouteMinds.Domain.Contracts;
 using RouteMinds.Domain.Entities;
 using RouteMinds.Domain.Interfaces;
 
@@ -54,7 +55,7 @@ namespace RouteMinds.Tests
             _mockRepo.Verify(repo => repo.AddAsync(It.IsAny<Order>()), Times.Once);
 
             // Verify that we published a message to RabbitMQ
-            _mockPublish.Verify(p => p.Publish(It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
+            _mockPublish.Verify(p => p.Publish(It.IsAny<OrderCreatedEvent>(), It.IsAny<CancellationToken>()), Times.Once);
         }
     }
 }
