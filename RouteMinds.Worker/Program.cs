@@ -27,30 +27,56 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 // 3. CONFIG: Redis (The Cache)
-builder.Services.AddStackExchangeRedisCache(options =>
+// Try to get the Redis connection string (we haven't set this in Azure, so it will be null)
+var redisConnection = builder.Configuration.GetConnectionString("RedisConnection");
+
+if (!string.IsNullOrEmpty(redisConnection))
 {
-    options.Configuration = "localhost:6379";
-    options.InstanceName = "RouteMinds_";
-});
+    // Use Real Redis (Production with Budget, or Local Docker)
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnection;
+        options.InstanceName = "RouteMinds_";
+    });
+}
+else
+{
+    // Fallback: Use Server RAM (Free Azure Mode)
+    // This works exactly like Redis but data is lost if the server restarts.
+    builder.Services.AddDistributedMemoryCache();
+}
 
 // 4. CONFIG: MassTransit (The Bus)
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<OrderCreatedConsumer>();
 
-    x.UsingRabbitMq((context, cfg) =>
-    {
-        cfg.Host("localhost", "/", h =>
-        {
-            h.Username("guest");
-            h.Password("guest");
-        });
+    x.SetKebabCaseEndpointNameFormatter();
 
-        cfg.ReceiveEndpoint("order-created-queue", e =>
+    if (builder.Environment.IsDevelopment())
+    {
+        // LOCALHOST: Use RabbitMQ
+        x.UsingRabbitMq((context, cfg) =>
         {
-            e.ConfigureConsumer<OrderCreatedConsumer>(context);
+            cfg.Host("localhost", "/", h =>
+            {
+                h.Username("guest");
+                h.Password("guest");
+            });
+            cfg.ConfigureEndpoints(context);
         });
-    });
+    }
+    else
+    {
+        // AZURE: Use Service Bus
+        x.UsingAzureServiceBus((context, cfg) =>
+        {
+            // We will read this from Azure Environment Variables later
+            var connectionString = builder.Configuration.GetConnectionString("ServiceBusConnection");
+            cfg.Host(connectionString);
+            cfg.ConfigureEndpoints(context);
+        });
+    }
 });
 
 var host = builder.Build();

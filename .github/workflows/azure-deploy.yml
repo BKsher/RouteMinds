@@ -1,0 +1,67 @@
+name: Build and Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows you to click a button to run it manually
+
+permissions:
+  contents: read
+
+env:
+  # ---------------- CONFIGURATION ---------------- #
+  ACR_NAME: "routemindsregbksher"                 # Your Registry Name
+  RG_NAME: "RouteMindsGroup"                      # Your Resource Group
+  API_APP_NAME: "routeminds-api-bksher"           # Your API Web App Name
+  WORKER_APP_NAME: "routeminds-worker-bksher"     # Your Worker Web App Name
+  # ----------------------------------------------- #
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout Code
+      - uses: actions/checkout@v4
+
+      # 2. Login to Azure (using the Secret we created)
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # 3. Login to your Container Registry
+      - name: Login to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      # 4. Build & Push API Image
+      - name: Build and Push API
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/api:${{ github.sha }} -f RouteMinds.API/Dockerfile .
+          docker push ${{ env.ACR_NAME }}.azurecr.io/api:${{ github.sha }}
+          # Also push 'latest' tag
+          docker tag ${{ env.ACR_NAME }}.azurecr.io/api:${{ github.sha }} ${{ env.ACR_NAME }}.azurecr.io/api:latest
+          docker push ${{ env.ACR_NAME }}.azurecr.io/api:latest
+
+      # 5. Build & Push Worker Image
+      - name: Build and Push Worker
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/worker:${{ github.sha }} -f RouteMinds.Worker/Dockerfile .
+          docker push ${{ env.ACR_NAME }}.azurecr.io/worker:${{ github.sha }}
+          # Also push 'latest' tag
+          docker tag ${{ env.ACR_NAME }}.azurecr.io/worker:${{ github.sha }} ${{ env.ACR_NAME }}.azurecr.io/worker:latest
+          docker push ${{ env.ACR_NAME }}.azurecr.io/worker:latest
+
+      # 6. Deploy (Update Web Apps to use the new image)
+      - name: Deploy API
+        run: |
+          az webapp config container set --name ${{ env.API_APP_NAME }} --resource-group ${{ env.RG_NAME }} --docker-custom-image-name ${{ env.ACR_NAME }}.azurecr.io/api:${{ github.sha }}
+
+      - name: Deploy Worker
+        run: |
+          az webapp config container set --name ${{ env.WORKER_APP_NAME }} --resource-group ${{ env.RG_NAME }} --docker-custom-image-name ${{ env.ACR_NAME }}.azurecr.io/worker:${{ github.sha }}
+      
+      # 7. Logout
+      - name: Azure Logout
+        run: az logout
