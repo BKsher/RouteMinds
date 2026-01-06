@@ -17,5 +17,7 @@
         public decimal PackageWeightKg { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        public string? RoutePlanJson { get; set; }
     }
 }

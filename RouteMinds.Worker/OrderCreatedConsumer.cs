@@ -43,6 +43,21 @@ namespace RouteMinds.Worker
                 return;
             }
 
+            // --- SIMULATE POISON MESSAGE ---
+            if (order.CustomerName == "Joker")
+            {
+                _logger.LogError("🤡 Joker found! Simulating crash for Order #{Id}", orderId);
+                throw new InvalidOperationException("Why so serious? (Crash caused by bad data)");
+            }
+            // -------------------------------
+
+            // Idempotency Check
+            if (!string.IsNullOrEmpty(order.RoutePlanJson))
+            {
+                _logger.LogWarning("⚠️ Order #{Id} was already processed. Skipping.", orderId);
+                return; // Stop processing. We are done.
+            }
+
             // 2. Logic: Find Nearest Hub
             var nearestHub = _hubs
                 .OrderBy(h => CalculateDistance(order.Latitude, order.Longitude, h.Lat, h.Lon))
@@ -59,6 +74,19 @@ namespace RouteMinds.Worker
             };
 
             _logger.LogInformation("✅ Route Calculated: Assigned to {Hub}. Distance: {Dist}km", routePlan.Origin, routePlan.EstimatedDistanceKm);
+
+            // Save result to database --------------
+
+            // Serialize to JSON
+            var json = System.Text.Json.JsonSerializer.Serialize(routePlan);
+
+            // Write to the Entity
+            order.RoutePlanJson = json;
+
+            // Save changes to Database (The Billboard)
+            await _repository.SaveChangesAsync();
+
+            // ----------------
 
             // 4. Save to Redis (Cache)
             // Key: "route_10" -> Value: JSON String

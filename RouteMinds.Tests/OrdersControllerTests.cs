@@ -1,6 +1,7 @@
 ﻿using MassTransit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 using Moq;
 using RouteMinds.API.Controllers;
 using RouteMinds.API.DTOs;
@@ -16,6 +17,7 @@ namespace RouteMinds.Tests
         private readonly Mock<IOrderRepository> _mockRepo;
         private readonly Mock<IPublishEndpoint> _mockPublish;
         private readonly Mock<IDistributedCache> _mockCache;
+        private readonly Mock<ILogger<OrdersController>> _mockLogger;
         private readonly OrdersController _controller;
 
         public OrdersControllerTests()
@@ -24,12 +26,14 @@ namespace RouteMinds.Tests
             _mockRepo = new Mock<IOrderRepository>();
             _mockPublish = new Mock<IPublishEndpoint>();
             _mockCache = new Mock<IDistributedCache>();
+            _mockLogger = new Mock<ILogger<OrdersController>>();
 
             // 2. Inject Mocks into Controller
             _controller = new OrdersController(
                 _mockRepo.Object,
                 _mockPublish.Object,
-                _mockCache.Object
+                _mockCache.Object,
+                _mockLogger.Object
             );
         }
 

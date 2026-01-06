@@ -74,24 +74,24 @@ namespace RouteMinds.API.Controllers
         [HttpGet("{id}/route")]
         public async Task<IActionResult> GetRoute(int id)
         {
-            // 1. Construct the Key (Must match what the Worker saved)
+            // 1. Try Cache (Fastest) - Keep this for local dev
             var cacheKey = $"route_{id}";
-
-            // 2. Try to fetch from Redis
-            var cachedData = await _cache.GetStringAsync(cacheKey);
-
-            // 3. Handle Cache Miss
-            if (string.IsNullOrEmpty(cachedData))
+            var cachedString = await _cache.GetStringAsync(cacheKey);
+            if (!string.IsNullOrEmpty(cachedString))
             {
-                // Optional: Check if order exists in DB first to distinguish "Not Found" vs "Pending"
-                return Accepted("Route is being calculated. Please try again in a few seconds.");
+                return Ok(JsonSerializer.Deserialize<object>(cachedString));
             }
 
-            // 4. Return the Data
-            // We deserialize to 'object' so ASP.NET returns it as proper JSON, not a string with escaped quotes
-            var routePlan = JsonSerializer.Deserialize<object>(cachedData);
+            // 2. FALLBACK: Check Database (The Fix)
+            var order = await _repository.GetByIdAsync(id);
 
-            return Ok(routePlan);
+            // If order exists AND has a route calculated...
+            if (order != null && !string.IsNullOrEmpty(order.RoutePlanJson))
+            {
+                return Ok(JsonSerializer.Deserialize<object>(order.RoutePlanJson));
+            }
+
+            return Accepted("Calculation in progress...");
         }
     }
 }

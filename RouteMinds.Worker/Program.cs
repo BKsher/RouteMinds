@@ -63,7 +63,17 @@ builder.Services.AddMassTransit(x =>
                 h.Username("guest");
                 h.Password("guest");
             });
-            cfg.ConfigureEndpoints(context);
+            cfg.ReceiveEndpoint("order-created-queue", e =>
+            {
+                // 1. Retry 5 times, wait 1s between attempts
+                e.UseMessageRetry(r => r.Interval(5, TimeSpan.FromSeconds(1)));
+
+                // 2. Parallel processing limits
+                e.PrefetchCount = 10;
+                e.UseConcurrencyLimit(5);
+
+                e.ConfigureConsumer<OrderCreatedConsumer>(context);
+            });
         });
     }
     else
@@ -74,7 +84,21 @@ builder.Services.AddMassTransit(x =>
             // We will read this from Azure Environment Variables later
             var connectionString = builder.Configuration.GetConnectionString("ServiceBusConnection");
             cfg.Host(connectionString);
-            cfg.ConfigureEndpoints(context);
+            cfg.ReceiveEndpoint("order-created-queue", e =>
+            {
+                // RELIABILITY CONFIGURATION
+
+                // 1. Retry Policy: If it crashes, try 5 times.
+                // Wait 1s, then 2s, 5s, 10s... (Exponential Backoff)
+                e.UseMessageRetry(r => r.Interval(5, TimeSpan.FromSeconds(1)));
+
+                // 2. Rate Limiting: Don't take more than 5 messages at once
+                // This prevents "Spamming" from killing your CPU
+                e.PrefetchCount = 10;
+                e.UseConcurrencyLimit(5);
+
+                e.ConfigureConsumer<OrderCreatedConsumer>(context);
+            });
         });
     }
 });
